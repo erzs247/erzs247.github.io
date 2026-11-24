@@ -158,6 +158,12 @@ textarea { width: calc(100% - 40px); margin: 6px 20px 0; height: 110px; border-r
 .ext img { width: 84px; height: 84px; border-radius: 22px; }
 .ext h3 { color: var(--text); font-size: 22px; margin: 16px 0 6px; }
 
+.install { display: flex; align-items: center; gap: 12px; margin: 12px 16px 0; padding: 10px 10px 10px 12px; border-radius: 16px; background: var(--bg2); border: 1px solid var(--line); }
+.install img { width: 44px; height: 44px; border-radius: 11px; }
+.install .t { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); line-height: 1.35; }
+.install .t b { display: block; color: var(--text); font-size: 15px; }
+.install .go { height: 34px; padding: 0 14px; border-radius: 17px; background: var(--blue); color: #fff; font-weight: 700; font-size: 14px; }
+.install .x { width: 30px; height: 30px; border-radius: 50%; color: var(--dim); }
 .toast { position: fixed; left: 50%; bottom: calc(var(--safe-b) + 24px); transform: translate(-50%, 30px); opacity: 0; z-index: 60; background: #1d2a46; color: var(--text); padding: 12px 18px; border-radius: 14px; font-size: 14px; transition: .2s; pointer-events: none; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 .skel { background: linear-gradient(90deg, #121a2e 0%, #1a2440 50%, #121a2e 100%); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: 8px; }
@@ -503,7 +509,7 @@ function renderHome() {
       <button class="round" data-act="add" title="Ajouter une appli">${ICON.plus}</button>
     </div>
     <div class="seg"><button data-page="overview" class="${S.page === 'overview' ? 'on' : ''}">Aperçu</button><button data-page="perf" class="${S.page === 'perf' ? 'on' : ''}">Performance</button></div>
-    ${DEMO ? '<div class="demo">Aperçu avec une collection fictive — publié sur erzs247.github.io, le hub lit tes vraies collections.</div>' : ''}`;
+    ${installHTML()}${DEMO ? '<div class="demo">Aperçu avec une collection fictive — publié sur erzs247.github.io, le hub lit tes vraies collections.</div>' : ''}`;
 
   if (!S.tabs.length) {
     root.innerHTML = head + `<div class="emptybox"><b>Aucune appli ajoutée</b>Ajoute NightDex, RiftDex, CardDex ou WeissDex en onglet : la valeur de toutes tes cartes s’affichera ici.<br><button class="btn" data-act="add">Ajouter une appli</button></div>`;
@@ -721,6 +727,8 @@ document.addEventListener('click', async (e) => {
   switch (d.act) {
     case 'dd': e.stopPropagation(); $('#menu').classList.toggle('on'); t.classList.toggle('open'); break;
     case 'more': showN += 30; renderHome(); break;
+    case 'install': if (installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch {} installEvt = null; $('#install')?.remove(); } break;
+    case 'installX': try { localStorage.setItem('dexhub:installDismissed', '1'); } catch {} $('#install')?.remove(); break;
     case 'perf': S.page = S.page === 'perf' ? 'overview' : 'perf'; renderHome(); break;
     case 'settings': settingsSheet(); break;
     case 'reload': closeSheet(); await loadAll(true); toast('Cotes actualisées'); break;
@@ -769,6 +777,21 @@ function bridges() {
     document.body.appendChild(f);
   }
 }
+
+// ---------- Installer l'appli (comme NightDex, RiftDex…) ----------
+let installEvt = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const installOff = () => { try { return localStorage.getItem('dexhub:installDismissed') === '1'; } catch { return false; } };
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (S.active === 'home') renderHome(); });
+addEventListener('appinstalled', () => { installEvt = null; $('#install')?.remove(); toast('DexHub est installé'); });
+function installHTML() {
+  if (!ON_SITE || isStandalone() || installOff() || (!installEvt && !isIOS())) return '';
+  return `<div class="install" id="install"><img src="icons/icon-192.png" alt="">
+    <div class="t"><b>Installer DexHub</b>${installEvt ? 'Ajoute le hub à ton écran d’accueil, comme une vraie appli.' : 'Touche Partager, puis « Sur l’écran d’accueil ».'}</div>
+    ${installEvt ? '<button class="go" data-act="install">Installer</button>' : ''}<button class="x" data-act="installX" aria-label="Fermer">✕</button></div>`;
+}
+if ('serviceWorker' in navigator && ON_SITE) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
 show();
 loadAll();

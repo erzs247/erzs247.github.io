@@ -22,5 +22,7 @@
       "sizes": "1024x1024",
       "type": "image/png"
     }
-  ]
+  ],
+  "id": "/",
+  "description": "Toutes mes collections de cartes et leur valeur"
 }
