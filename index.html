@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1120">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DexHub</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="hub-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="hub-icon.svg">
+<style>
+:root {
+  --bg: #0b1120; --bg2: #0f172a; --line: #1c2740; --chip: #131c31;
+  --text: #f1f5fb; --muted: #8a96ad; --dim: #5c6883;
+  --blue: #2196f3; --blue-soft: rgba(33,150,243,.16);
+  --up: #3fd1a0; --down: #f2677a;
+  --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, -apple-system, "Segoe UI", Roboto, system-ui, sans-serif; overscroll-behavior: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- Barre d'onglets (style navigateur) ---------- */
+#tabbar { position: fixed; inset: 0 0 auto 0; z-index: 20; padding: calc(var(--safe-t) + 8px) 8px 0; background: #070c18; border-bottom: 1px solid var(--line); }
+#tabs { display: flex; align-items: flex-end; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+#tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 4px; height: 40px; width: 52px; padding: 0; border-radius: 12px 12px 0 0; background: transparent; color: var(--muted); font-size: 13.5px; font-weight: 600; position: relative; user-select: none; }
+.tab.active { background: var(--bg); color: var(--text); box-shadow: inset 0 2px 0 var(--blue); }
+.tab:not(.active):hover { background: #0e1527; }
+.tab img, .tab .fav { width: 24px; height: 24px; border-radius: 7px; flex: 0 0 auto; object-fit: cover; }
+.tab .label { display: none; }
+.tab .x { position: absolute; top: 1px; right: 1px; width: 17px; height: 17px; border-radius: 50%; display: none; place-items: center; font-size: 9px; background: #26324f; color: #c9d3e6; }
+.tab.active .x { display: grid; }
+.tab .x:hover { background: #1c2740; color: var(--text); }
+.tab.home { width: 48px; }
+.tab.home svg { width: 19px; height: 19px; }
+#addTab { flex: 0 0 auto; width: 36px; height: 34px; margin: 0 0 2px 2px; border-radius: 10px; display: grid; place-items: center; color: var(--muted); font-size: 22px; }
+#addTab:hover { background: #0e1527; color: var(--text); }
+
+/* ---------- Vues ---------- */
+main { position: fixed; inset: 0; padding-top: calc(var(--safe-t) + 47px); }
+.view { position: absolute; inset: calc(var(--safe-t) + 47px) 0 0 0; overflow-y: auto; display: none; }
+.view.on { display: block; }
+.view iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+.view.app { overflow: hidden; }
+.wrap { max-width: 620px; margin: 0 auto; padding: 0 0 calc(var(--safe-b) + 32px); }
+
+/* ---------- Accueil ---------- */
+.topbar { display: flex; align-items: center; gap: 8px; padding: 10px 16px 0; }
+.round { width: 38px; height: 38px; border-radius: 50%; background: var(--chip); display: grid; place-items: center; color: #c9d3e6; }
+.round svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.topbar .sp { flex: 1; }
+.seg { display: flex; gap: 18px; padding: 10px 20px 0; }
+.seg button { font-size: 21px; font-weight: 700; color: var(--dim); padding-bottom: 8px; border-bottom: 3px solid transparent; letter-spacing: -.3px; }
+.seg button.on { color: var(--text); border-color: var(--blue); }
+.hero { padding: 14px 20px 0; min-height: 82px; }
+.big { font-size: 34px; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+.big .dec { color: #9aa6bd; }
+.big .cur { font-size: 15px; font-weight: 600; color: #9aa6bd; margin-left: 6px; letter-spacing: 0; }
+.delta { margin-top: 8px; font-size: 15px; font-weight: 500; }
+.delta .per { color: var(--muted); margin-left: 4px; }
+.up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--muted); }
+.when { color: var(--muted); font-size: 12px; margin-top: 4px; min-height: 16px; }
+
+.chart { position: relative; height: 140px; margin-top: 4px; touch-action: pan-y; }
+.chart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart .lbl { position: absolute; font-size: 12px; color: #9aa6bd; white-space: nowrap; pointer-events: none; }
+.chart .cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.25); pointer-events: none; display: none; }
+.chart .dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px rgba(33,150,243,.3); pointer-events: none; display: none; }
+.chart .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 14px; text-align: center; padding: 0 30px; }
+
+.ranges { display: flex; gap: 6px; padding: 12px 16px 14px; border-bottom: 1px solid var(--line); }
+.ranges button { flex: 1; height: 32px; border-radius: 16px; border: 1px solid var(--line); color: #c3cde0; font-weight: 600; font-size: 13px; }
+.ranges button.on { background: var(--blue-soft); border-color: var(--blue); color: #e6f2ff; }
+
+.listhead { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 2px; position: relative; }
+.dd { display: flex; align-items: center; gap: 8px; color: var(--blue); font-size: 17px; font-weight: 600; }
+.dd svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; transition: transform .15s; }
+.dd.open svg { transform: rotate(180deg); }
+.menu { position: absolute; top: 44px; left: 16px; z-index: 5; background: #141d33; border: 1px solid var(--line); border-radius: 14px; padding: 6px; min-width: 240px; box-shadow: 0 18px 40px rgba(0,0,0,.5); display: none; }
+.menu.on { display: block; }
+.menu button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 12px 12px; border-radius: 9px; font-size: 15px; text-align: left; }
+.menu button:hover { background: #1b2640; }
+.menu button.on { color: var(--blue); }
+.count { color: var(--dim); font-size: 13px; }
+
+.filters { display: flex; gap: 8px; padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.filters button { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; background: var(--chip); color: #b8c3d8; font-size: 13px; font-weight: 600; }
+.filters button img { width: 16px; height: 16px; border-radius: 4px; }
+.filters button.on { background: var(--blue-soft); color: #e6f2ff; box-shadow: inset 0 0 0 1px var(--blue); }
+
+.rows { padding: 6px 0 0; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 20px; }
+.row:active { background: #0f1729; }
+.thumb { width: 46px; height: 46px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; background: #18223a; position: relative; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; }
+.thumb .badge { position: absolute; right: -1px; bottom: -1px; width: 17px; height: 17px; border-radius: 6px; border: 2px solid var(--bg); object-fit: cover; }
+.row .mid { flex: 1; min-width: 0; }
+.row .name { font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .sub { color: var(--muted); font-size: 13px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .right { text-align: right; flex: 0 0 auto; }
+.row .val { font-size: 16px; font-weight: 500; }
+.row .chg { font-size: 13px; margin-top: 3px; }
+.more { display: block; margin: 10px auto 0; padding: 12px 22px; border-radius: 22px; background: var(--chip); color: #c3cde0; font-weight: 600; font-size: 14px; }
+.note { color: var(--dim); font-size: 13px; padding: 14px 20px; line-height: 1.5; }
+.emptybox { margin: 26px 20px; padding: 26px 22px; border: 1px dashed var(--line); border-radius: 18px; text-align: center; color: var(--muted); line-height: 1.5; }
+.emptybox b { color: var(--text); display: block; font-size: 17px; margin-bottom: 6px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 22px; background: var(--blue); color: #fff; font-weight: 600; font-size: 15px; margin-top: 14px; }
+.btn.ghost { background: var(--chip); color: #d5ddeb; }
+
+/* ---------- Performance ---------- */
+.alloc { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 22px 20px 6px; background: var(--chip); }
+.alloc span { display: block; height: 100%; }
+.approw .thumb { border-radius: 14px; }
+.approw .chg { font-size: 13px; }
+.approw .sub { font-size: 13.5px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px 20px 0; }
+.stat { background: var(--bg2); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.stat small { color: var(--muted); font-size: 12.5px; display: block; }
+.stat div { font-size: 20px; font-weight: 600; margin-top: 6px; }
+
+/* ---------- Feuilles (ajout d'onglet, réglages) ---------- */
+.scrim { position: fixed; inset: 0; z-index: 40; background: rgba(2,6,15,.6); display: none; }
+.scrim.on { display: block; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-width: 620px; margin: 0 auto; background: #10182b; border-radius: 22px 22px 0 0; padding: 10px 0 calc(var(--safe-b) + 18px); transform: translateY(105%); transition: transform .22s ease; max-height: 86vh; overflow-y: auto; }
+.sheet.on { transform: none; }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: #2a3654; margin: 0 auto 12px; }
+.sheet h2 { font-size: 21px; margin: 4px 20px 4px; }
+.sheet p.hint { color: var(--muted); font-size: 14px; margin: 0 20px 10px; line-height: 1.45; }
+.appitem { display: flex; align-items: center; gap: 14px; padding: 12px 20px; }
+.appitem .logo { width: 52px; height: 52px; border-radius: 14px; object-fit: cover; background: #18223a; flex: 0 0 auto; }
+.appitem .mid { flex: 1; min-width: 0; }
+.appitem .name { font-weight: 600; font-size: 17px; }
+.appitem .sub { color: var(--muted); font-size: 14px; margin-top: 3px; }
+.get { height: 34px; padding: 0 16px; border-radius: 17px; background: var(--blue); color: #fff; font-weight: 700; font-size: 14px; }
+.get.done { background: var(--chip); color: var(--muted); }
+textarea { width: calc(100% - 40px); margin: 6px 20px 0; height: 110px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 10px; font: 12px ui-monospace, monospace; resize: vertical; }
+.sheet .actions { display: flex; gap: 10px; padding: 0 20px; flex-wrap: wrap; }
+
+/* ---------- Mini-navigateur (onglet d'appli) ---------- */
+.browser { display: flex; flex-direction: column; height: 100%; }
+.addr { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.addr .ib { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #c9d3e6; flex: 0 0 auto; }
+.addr .ib:hover { background: var(--chip); }
+.addr .ib svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.addr .url { flex: 1; min-width: 0; height: 34px; border-radius: 17px; background: var(--chip); display: flex; align-items: center; gap: 7px; padding: 0 12px; font-size: 13.5px; color: #c9d3e6; }
+.addr .url img { width: 16px; height: 16px; border-radius: 4px; }
+.addr .url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.addr .url b { color: var(--text); font-weight: 600; }
+.browser iframe { flex: 1; }
+
+/* ---------- Onglet d'appli non intégrable ---------- */
+.ext { text-align: center; padding: 60px 26px; color: var(--muted); line-height: 1.5; }
+.ext img { width: 84px; height: 84px; border-radius: 22px; }
+.ext h3 { color: var(--text); font-size: 22px; margin: 16px 0 6px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(var(--safe-b) + 24px); transform: translate(-50%, 30px); opacity: 0; z-index: 60; background: #1d2a46; color: var(--text); padding: 12px 18px; border-radius: 14px; font-size: 14px; transition: .2s; pointer-events: none; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.skel { background: linear-gradient(90deg, #121a2e 0%, #1a2440 50%, #121a2e 100%); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: 8px; }
+@keyframes sk { to { background-position: -200% 0; } }
+.demo { margin: 12px 20px 0; padding: 8px 12px; border-radius: 10px; background: rgba(245,180,40,.12); color: #f5c451; font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<div id="tabbar"><div id="tabs"></div></div>
+<main id="views"></main>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+// =====================================================================
+//  DexHub — un seul endroit pour toutes les applis « Dex »
+//  Publié sur https://erzs247.github.io/ : même origine que NightDex,
+//  CardDex et WeissDex, donc le hub lit directement leurs collections
+//  (localStorage) et leurs cotes Cardmarket (data/prices.json).
+// =====================================================================
+const HOST = 'erzs247.github.io';
+const ON_SITE = location.hostname === HOST;
+const ORIGIN = ON_SITE ? '' : `https://${HOST}`;
+const DEMO = !ON_SITE || /[?&]demo\b/.test(location.search);
+
+// Catalogue des applis qu'on peut ajouter en onglet
+const APPS = [
+  { id: 'nightdex', name: 'NightDex', game: 'Cyberpunk TCG', base: '/nightdex/', key: 'nightdex:v1', url: '/nightdex/', embed: true, color: '#f5e50b' },
+  { id: 'riftdex', name: 'RiftDex', game: 'Riftbound', base: '/riftdex/', key: 'riftdex:v1', url: 'https://riftdex-7e181.firebaseapp.com/', embed: true, color: '#3f8cff', importable: true,
+    origin: 'https://riftdex-7e181.firebaseapp.com', bridge: 'https://riftdex-7e181.firebaseapp.com/hub-bridge.html' },
+  { id: 'carddex', name: 'CardDex', game: 'Pokémon TCG', base: '/carddex/', key: 'carddex:v1', url: '/carddex/', embed: true, color: '#ef3340', split: true },
+  { id: 'weissdex', name: 'WeissDex', game: 'Weiss Schwarz', base: '/WeissDex/', key: 'weissdex:v1', url: '/WeissDex/', embed: true, color: '#c9cfe0', split: true, cardFiles: ['data/cards-en.json', 'data/cards-ja.json'] },
+];
+const appById = Object.fromEntries(APPS.map((a) => [a.id, a]));
+const logoOf = (a) => `${ORIGIN}${a.base}icons/icon.svg`;
+const abs = (a, p) => (/^(https?:|data:)/.test(p) ? p : `${ORIGIN}${a.base}${p}`);
+
+// ---------- État du hub ----------
+const HKEY = 'dexhub:v1';
+const S = (() => {
+  const d = { tabs: [], active: 'home', page: 'overview', range: '1M', list: 'top', filter: 'all', imports: {} };
+  try { return { ...d, ...JSON.parse(localStorage.getItem(HKEY) || '{}') }; } catch { return d; }
+})();
+if (DEMO && !S.tabs.length) S.tabs = ['nightdex', 'riftdex', 'carddex', 'weissdex'];
+S.tabs = S.tabs.filter((id) => appById[id]);
+if (S.active !== 'home' && !S.tabs.includes(S.active)) S.active = 'home';
+const save = () => { try { localStorage.setItem(HKEY, JSON.stringify(S)); } catch {} };
+
+// ---------- Formats ----------
+const fEur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+const fPct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 2, minimumFractionDigits: 2, signDisplay: 'always' });
+const fDay = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+const eur = (v) => fEur.format(v || 0);
+const sEur = (v) => (v >= 0 ? '+' : '−') + fEur.format(Math.abs(v));
+const pct = (v) => (v == null || !isFinite(v) ? '' : fPct.format(v));
+const cls = (v) => (v > 1e-9 ? 'up' : v < -1e-9 ? 'down' : 'flat');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dayStr = (t) => new Date(t).toISOString().slice(0, 10);
+const RANGES = [['1S', 7], ['1M', 30], ['3M', 90], ['6M', 182], ['Tout', 0]];
+const LISTS = [['top', 'Les plus chères'], ['low', 'Les moins chères'], ['gain', 'Plus fortes hausses'], ['loss', 'Plus fortes baisses']];
+
+const ICON = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>',
+  menu: '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>',
+  pie: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  ext: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>',
+};
+
+// Logo de secours (initiale sur la couleur de l'appli) si l'icône ne charge pas
+function fallbackLogo(a) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#18223a"/><text x="32" y="43" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="30" fill="${a.color}">${a.name[0]}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img.tagName !== 'IMG' || img.dataset.done) return;
+  img.dataset.done = '1';
+  if (img.dataset.app) img.src = fallbackLogo(appById[img.dataset.app]);
+  else if (img.dataset.ph) img.src = img.dataset.ph;
+}, true);
+const logoImg = (a, extra = '') => `<img src="${esc(logoOf(a))}" data-app="${a.id}" alt="" ${extra}>`;
+
+// =====================================================================
+//  Données : collections + cotes de chaque appli installée
+// =====================================================================
+const store = {};   // id → { entries: [...], meta, status }
+
+// collection enregistrée par l'appli : { id, qty, foil }
+function readCollection(app) {
+  let u = null;
+  if (app.importable && S.imports[app.id]) u = S.imports[app.id].data;
+  if (!u) { try { u = JSON.parse(localStorage.getItem(app.key) || 'null'); } catch {} }
+  if (!u) return [];
+  const map = new Map();
+  const add = (owned, copies) => {
+    for (const [k, q] of Object.entries(owned || {})) {
+      if (!(q > 0)) continue;
+      const id = k.split('@')[0];
+      const foil = Array.isArray(copies?.[k]) ? copies[k].slice(0, q).filter((x) => x?.f).length : 0;
+      const e = map.get(id) || { id, qty: 0, foil: 0 };
+      e.qty += q; e.foil += foil; map.set(id, e);
+    }
+  };
+  if (u.col) for (const c of Object.values(u.col)) add(c?.owned, c?.copies);
+  else add(u.owned, u.copies);
+  return [...map.values()];
+}
+
+const cache = new Map();
+function getJSON(url) {
+  if (!cache.has(url)) cache.set(url, fetch(url, { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error(url); return r.json(); }));
+  return cache.get(url);
+}
+
+async function loadApp(app) {
+  const owned = readCollection(app);
+  const st = { app, owned, cards: [], status: 'ok', updatedAt: null };
+  store[app.id] = st;
+  if (!owned.length) { st.status = 'empty'; return st; }
+  const B = (p) => `${ORIGIN}${app.base}${p}`;
+  const [pf, cat, sealed] = await Promise.all([
+    getJSON(B('data/prices.json')),
+    getJSON(B('data/catalog.json')),
+    getJSON(B('data/sealed.json')).catch(() => ({ items: [] })),
+  ]);
+  st.updatedAt = pf.updatedAt;
+  const need = new Set(owned.map((o) => o.id));
+  const meta = new Map();
+  const sets = new Map((cat.sets || []).map((s) => [s.code, s]));
+  const take = (list) => { for (const c of list || []) if (need.has(c.id) && !meta.has(c.id)) meta.set(c.id, c); };
+  take(cat.cards); take(sealed.items);
+  for (const f of app.cardFiles || []) {
+    if ([...need].every((id) => meta.has(id))) break;
+    try { take((await getJSON(B(f))).cards); } catch {}
+  }
+  // historique par série (CardDex, WeissDex) : seulement les séries où j'ai des cartes
+  const hist = {};
+  if (pf.split) {
+    const codes = [...new Set([...meta.values()].map((c) => c.set).filter(Boolean))];
+    await Promise.all(codes.map((code) => getJSON(B(`data/history/${encodeURIComponent(code)}.json`)).then((m) => Object.assign(hist, m)).catch(() => {})));
+  }
+  for (const o of owned) {
+    const p = pf.prices?.[o.id];
+    const c = meta.get(o.id) || { id: o.id, name: o.id };
+    const trend = p?.trend ?? null;
+    const foilRatio = p?.trendFoil && trend ? p.trendFoil / trend : 1;
+    const h = p?.history || hist[o.id] || (trend != null ? [[pf.updatedAt, trend]] : null);
+    const units = o.qty - o.foil + o.foil * foilRatio;   // exemplaires « pondérés » (foil au prix foil)
+    st.cards.push({
+      app, id: o.id, qty: o.qty, foil: o.foil, unit: trend == null ? null : (trend * units) / o.qty,
+      value: trend == null ? 0 : trend * units, units, hist: h,
+      name: c.name || c.nameEn || o.id, set: c.print || sets.get(c.set)?.print || c.set || '', number: c.number || '',
+      img: imageOf(app, c, sets), sealed: c.kind === 'sealed',
+    });
+  }
+  return st;
+}
+
+// adresse de l'image d'une carte, comme dans chaque appli
+function imageOf(app, c, sets) {
+  if (app.id === 'carddex' && c.img?.length) {
+    const il = c.img.includes('fr') ? 'fr' : c.img.includes('en') ? 'en' : c.img[0];
+    const path = c.imgPath?.[il] ?? `${sets.get(c.set)?.path?.[il]}/${c.number}`;
+    return `https://assets.tcgdex.net/${il}/${path}/low.webp`;
+  }
+  if (app.id === 'weissdex' && !c.image) {
+    const s = sets.get(c.set);
+    let u = c.im?.startsWith('http') ? c.im : null;
+    if (!u && s?.ib && !c.noimg) {
+      const f = c.id.replace(/-/g, '_');
+      u = `${s.ib}${c.im ?? (s.languages?.[0] === 'ja' ? f.toLowerCase() : f)}${c.im && /\.\w{3,4}$/.test(c.im) ? '' : '.png'}`;
+    }
+    return u ? `https://wsrv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//, ''))}&w=160&output=webp&q=80` : null;
+  }
+  const img = c.image || c.imageEn;
+  return img ? abs(app, img) : null;
+}
+
+// =====================================================================
+//  Mode démo (aperçu hors du site) : collections fictives
+// =====================================================================
+function demoStore() {
+  const names = {
+    nightdex: ['Johnny Silverhand', 'Arasaka Tower', 'Netrunner Deck', 'Militech Crusher', 'Rogue — Afterlife', 'Mantis Blades', 'Night City Map', 'Kiroshi Optics', 'Booster Night City', 'Judy Alvarez'],
+    riftdex: ['Ahri — Nine-Tailed Fox', 'Jinx — Loose Cannon', 'Yasuo — Unforgiven', 'Origins Booster', 'Lux — Lady of Luminosity', 'Viktor — Herald', 'Garen — Might of Demacia', 'Teemo — Swift Scout', 'Darius — Hand of Noxus'],
+    carddex: ['Dracaufeu ex', 'Pikachu VMAX', 'Mewtwo GX', 'Lugia V (alt)', 'Évoli Promo', 'Rayquaza VMAX', 'Gardevoir ex', 'Ectoplasma V', 'Ronflex'],
+    weissdex: ['Miku Nakano SSP', 'Ichika Nakano RR', 'Rem SP', 'Asuna SR', 'Megumin RRR', 'Marin Kitagawa SP', 'Yor Forger SR', 'Frieren SSP'],
+  };
+  const end = Date.parse('2026-11-24');
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (const app of APPS) {
+    if (!S.tabs.includes(app.id)) continue;
+    const cards = names[app.id].map((n, i) => {
+      let p = [0.4, 2, 8, 25, 60, 140, 3, 1, 12, 35][i % 10] * (0.6 + rnd());
+      const days = 180 - Math.floor(rnd() * 120), drift = (rnd() - 0.45) * 0.012, h = [];
+      for (let d = days; d >= 0; d--) { p = Math.max(0.05, p * (1 + drift + (rnd() - 0.5) * 0.05)); h.push([dayStr(end - d * 864e5), +p.toFixed(2)]); }
+      const qty = 1 + Math.floor(rnd() * 3), last = h[h.length - 1][1];
+      return { app, id: `${app.id}-${i}`, qty, foil: 0, unit: last, value: last * qty, units: qty, hist: h, name: n, set: app.name.slice(0, 3).toUpperCase(), number: String(i + 1).padStart(3, '0'), img: null };
+    });
+    store[app.id] = { app, owned: cards, cards, status: 'ok', updatedAt: '2026-11-24' };
+  }
+}
+
+// =====================================================================
+//  Calculs : courbe de valeur, variations
+// =====================================================================
+function priceAt(h, day) {
+  let v = null;
+  for (const [d, p] of h) { if (d <= day) v = p; else break; }
+  return v ?? h[0][1];   // avant la première cote : on garde la première connue
+}
+function activeCards() {
+  const out = [];
+  for (const id of S.tabs) { const st = store[id]; if (st?.cards) out.push(...st.cards); }
+  return S.filter === 'all' ? out : out.filter((c) => c.app.id === S.filter);
+}
+function series(cards) {
+  const withH = cards.filter((c) => c.hist?.length);
+  if (!withH.length) return [];
+  let last = '0000', first = '9999';
+  for (const c of withH) { last = c.hist[c.hist.length - 1][0] > last ? c.hist[c.hist.length - 1][0] : last; first = c.hist[0][0] < first ? c.hist[0][0] : first; }
+  const days = RANGES.find((r) => r[0] === S.range)[1];
+  const start = days ? dayStr(Date.parse(last) - days * 864e5) : first;
+  const from = start < first ? first : start;
+  const pts = [];
+  for (let t = Date.parse(from); t <= Date.parse(last); t += 864e5) pts.push({ d: dayStr(t), v: 0 });
+  for (const c of withH) {
+    let j = 0, v = c.hist[0][1];
+    for (const pt of pts) {
+      while (j < c.hist.length && c.hist[j][0] <= pt.d) { v = c.hist[j][1]; j++; }
+      pt.v += v * c.units;
+    }
+  }
+  return pts;
+}
+function changeOf(c) {
+  if (!c.hist || c.hist.length < 2) return null;
+  const last = c.hist[c.hist.length - 1];
+  const days = RANGES.find((r) => r[0] === S.range)[1];
+  const before = days ? priceAt(c.hist, dayStr(Date.parse(last[0]) - days * 864e5)) : c.hist[0][1];
+  return before ? { pct: last[1] / before - 1, abs: (last[1] - before) * c.units } : null;
+}
+
+// =====================================================================
+//  Rendu
+// =====================================================================
+const $ = (s, r = document) => r.querySelector(s);
+const views = $('#views');
+
+function renderTabs() {
+  const tabs = [`<div class="tab home ${S.active === 'home' ? 'active' : ''}" data-tab="home" title="Accueil">${ICON.home}<span class="label">Hub</span></div>`];
+  for (const id of S.tabs) {
+    const a = appById[id];
+    tabs.push(`<div class="tab ${S.active === id ? 'active' : ''}" data-tab="${id}" title="${esc(a.name)}">${logoImg(a)}<span class="label">${esc(a.name)}</span><span class="x" data-close="${id}" title="Fermer l'onglet">✕</span></div>`);
+  }
+  $('#tabs').innerHTML = tabs.join('') + `<button id="addTab" title="Ajouter une appli">+</button>`;
+}
+
+function ensureViews() {
+  if (!$('#v-home')) views.insertAdjacentHTML('beforeend', '<section class="view" id="v-home"><div class="wrap" id="home"></div></section>');
+  for (const id of S.tabs) {
+    if ($(`#v-${id}`)) continue;
+    const a = appById[id];
+    const sec = document.createElement('section');
+    sec.className = 'view'; sec.id = `v-${id}`;
+    sec.dataset.lazy = '1';
+    views.appendChild(sec);
+  }
+  for (const sec of views.querySelectorAll('.view')) {
+    const id = sec.id.slice(2);
+    if (id !== 'home' && !S.tabs.includes(id)) sec.remove();
+  }
+}
+
+const B_ICON = {
+  back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
+  reload: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>',
+  out: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>',
+};
+const fullUrl = (a) => new URL(a.url, `https://${HOST}/`).href;
+const shortUrl = (u) => { const x = new URL(u); return `<b>${esc(x.hostname)}</b>${esc((x.pathname + x.search).replace(/\/$/, ''))}`; };
+
+// Onglet d'appli = mini-navigateur : barre d'adresse + la page de l'appli (avec le compte de chacun)
+function openAppView(id) {
+  const a = appById[id], sec = $(`#v-${id}`);
+  if (!sec.dataset.lazy) return;
+  delete sec.dataset.lazy;
+  sec.classList.add('app');
+  const url = fullUrl(a);
+  const canFrame = ON_SITE;   // l'aperçu claude.ai interdit d'intégrer d'autres sites
+  sec.innerHTML = `<div class="browser">
+    <div class="addr">
+      <button class="ib" data-nav="back" data-app="${id}" title="Retour">${B_ICON.back}</button>
+      <div class="url">${logoImg(a)}<span id="u-${id}">${shortUrl(url)}</span></div>
+      <button class="ib" data-nav="reload" data-app="${id}" title="Recharger">${B_ICON.reload}</button>
+      <a class="ib" href="${esc(url)}" target="_blank" rel="noopener" title="Ouvrir dans une nouvelle fenêtre">${B_ICON.out}</a>
+    </div>
+    ${canFrame
+      ? `<iframe id="f-${id}" src="${esc(url)}" title="${esc(a.name)}" allow="camera; clipboard-write; clipboard-read; fullscreen; web-share"></iframe>`
+      : `<div class="ext">${logoImg(a)}<h3>${esc(a.name)}</h3><div>Une fois le hub publié sur erzs247.github.io, ${esc(a.name)} s’affiche ici comme dans un navigateur, connecté à ton compte.</div><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Ouvrir ${esc(a.name)}</a></div>`}
+  </div>`;
+  const f = $(`#f-${id}`);
+  if (f) f.addEventListener('load', () => {
+    try { $(`#u-${id}`).innerHTML = shortUrl(f.contentWindow.location.href); } catch { /* autre domaine : adresse de départ */ }
+  });
+}
+function navApp(id, what) {
+  const f = $(`#f-${id}`);
+  if (!f) return;
+  try {
+    if (what === 'back') f.contentWindow.history.back();
+    else f.contentWindow.location.reload();
+  } catch { f.src = fullUrl(appById[id]); }   // appli sur un autre domaine : on recharge son adresse
+}
+
+function show() {
+  ensureViews();
+  renderTabs();
+  for (const sec of views.querySelectorAll('.view')) sec.classList.toggle('on', sec.id === `v-${S.active}`);
+  if (S.active === 'home') renderHome(); else openAppView(S.active);
+  $(`.tab[data-tab="${S.active}"]`)?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  save();
+}
+
+let loading = false, showN = 20, scrubIdx = null;
+function renderHome() {
+  const root = $('#home');
+  const anyCards = S.tabs.some((id) => store[id]?.cards?.length);
+  const head = `
+    <div class="topbar">
+      <button class="round" data-act="settings" title="Réglages">${ICON.menu}</button>
+      <span class="sp"></span>
+      <button class="round" data-act="reload" title="Actualiser">${ICON.refresh}</button>
+      <button class="round" data-act="perf" title="Répartition">${ICON.pie}</button>
+      <button class="round" data-act="add" title="Ajouter une appli">${ICON.plus}</button>
+    </div>
+    <div class="seg"><button data-page="overview" class="${S.page === 'overview' ? 'on' : ''}">Aperçu</button><button data-page="perf" class="${S.page === 'perf' ? 'on' : ''}">Performance</button></div>
+    ${DEMO ? '<div class="demo">Aperçu avec une collection fictive — publié sur erzs247.github.io, le hub lit tes vraies collections.</div>' : ''}`;
+
+  if (!S.tabs.length) {
+    root.innerHTML = head + `<div class="emptybox"><b>Aucune appli ajoutée</b>Ajoute NightDex, RiftDex, CardDex ou WeissDex en onglet : la valeur de toutes tes cartes s’affichera ici.<br><button class="btn" data-act="add">Ajouter une appli</button></div>`;
+    return;
+  }
+  if (loading && !anyCards) {
+    root.innerHTML = head + `<div class="hero"><div class="skel" style="width:210px;height:44px"></div><div class="skel" style="width:140px;height:18px;margin-top:14px"></div></div><div class="skel" style="height:220px;margin:16px 20px"></div>`;
+    return;
+  }
+  if (!anyCards) {
+    const lines = S.tabs.map((id) => store[id]?.status === 'error' ? `${appById[id].name} : données introuvables` : null).filter(Boolean);
+    root.innerHTML = head + `<div class="emptybox"><b>Pas encore de cartes</b>Les applis ajoutées n’ont aucune carte enregistrée sur cet appareil. Ouvre un onglet et ajoute des cartes à ta collection.${lines.length ? `<br><br>${lines.join('<br>')}` : ''}</div>`;
+    return;
+  }
+  root.innerHTML = head + (S.page === 'overview' ? overviewHTML() : perfHTML());
+  if (S.page === 'overview') drawChart();
+}
+
+function filtersHTML() {
+  const apps = S.tabs.filter((id) => store[id]?.cards?.length);
+  if (apps.length < 2) return '';
+  return `<div class="filters"><button data-filter="all" class="${S.filter === 'all' ? 'on' : ''}">Toutes</button>${apps.map((id) => `<button data-filter="${id}" class="${S.filter === id ? 'on' : ''}">${logoImg(appById[id])}${esc(appById[id].name)}</button>`).join('')}</div>`;
+}
+
+function heroHTML(pts) {
+  const end = pts.length ? pts[pts.length - 1] : null, beg = pts[0];
+  const cur = scrubIdx != null && pts[scrubIdx] ? pts[scrubIdx] : end;
+  const total = cur ? cur.v : activeCards().reduce((a, c) => a + c.value, 0);
+  const d = cur && beg ? cur.v - beg.v : 0, p = beg?.v ? d / beg.v : 0;
+  const [int, dec] = eur(total).replace(/\s?€/, '').split(',');
+  return `<div class="big num">€${int}<span class="dec">,${dec ?? '00'}</span><span class="cur">EUR</span></div>
+    <div class="delta num ${cls(d)}">${sEur(d)} (${pct(p)})<span class="per">${scrubIdx != null && cur ? '' : S.range}</span></div>
+    <div class="when">${cur ? (scrubIdx != null ? fDay.format(new Date(cur.d)) : `Cotes Cardmarket du ${fDay.format(new Date(end.d))}`) : ''}</div>`;
+}
+
+function overviewHTML() {
+  const cards = activeCards();
+  const pts = series(cards);
+  let list = cards.filter((c) => c.unit != null).map((c) => ({ c, ch: changeOf(c) }));
+  if (S.list === 'top') list.sort((a, b) => b.c.unit - a.c.unit);
+  else if (S.list === 'low') list = list.filter((x) => x.c.unit > 0).sort((a, b) => a.c.unit - b.c.unit);
+  else if (S.list === 'gain') list = list.filter((x) => x.ch && x.ch.pct > 0).sort((a, b) => b.ch.pct - a.ch.pct);
+  else list = list.filter((x) => x.ch && x.ch.pct < 0).sort((a, b) => a.ch.pct - b.ch.pct);
+  const nCards = cards.reduce((a, c) => a + c.qty, 0);
+  const noPrice = cards.filter((c) => c.unit == null).length;
+  return `
+    ${filtersHTML()}
+    <div class="hero" id="hero">${heroHTML(pts)}</div>
+    <div class="chart" id="chart"></div>
+    <div class="ranges">${RANGES.map(([k]) => `<button data-range="${k}" class="${S.range === k ? 'on' : ''}">${k}</button>`).join('')}</div>
+    <div class="listhead">
+      <button class="dd" data-act="dd">${esc(LISTS.find((l) => l[0] === S.list)[1])} ${ICON.chev}</button>
+      <span class="count">${nCards} carte${nCards > 1 ? 's' : ''}</span>
+      <div class="menu" id="menu">${LISTS.map(([k, l]) => `<button data-list="${k}" class="${S.list === k ? 'on' : ''}">${l}${S.list === k ? ' ✓' : ''}</button>`).join('')}</div>
+    </div>
+    <div class="rows">${list.length ? list.slice(0, showN).map(rowHTML).join('') : `<div class="note">${S.list === 'gain' ? 'Aucune carte en hausse' : S.list === 'loss' ? 'Aucune carte en baisse' : 'Aucune carte cotée'} sur la période ${S.range}.</div>`}</div>
+    ${list.length > showN ? `<button class="more" data-act="more">Voir plus (${list.length - showN})</button>` : ''}
+    ${noPrice ? `<div class="note">${noPrice} carte${noPrice > 1 ? 's' : ''} sans cote Cardmarket ne ${noPrice > 1 ? 'sont' : 'est'} pas comptée${noPrice > 1 ? 's' : ''}.</div>` : ''}`;
+}
+
+function placeholder(c) {
+  const t = esc((c.name || '?').replace(/[^A-Za-zÀ-ÿ0-9]/g, '').slice(0, 2).toUpperCase());
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54 54"><rect width="54" height="54" fill="#18223a"/><text x="27" y="33" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="17" fill="${c.app.color}">${t}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+function rowHTML({ c, ch }) {
+  const ph = placeholder(c);
+  const showChange = S.list === 'gain' || S.list === 'loss';
+  const sub = [c.qty > 1 ? `×${c.qty}` : null, c.foil ? 'foil' : null, [c.set, c.number].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+  return `<div class="row" data-open="${c.app.id}">
+    <div class="thumb"><img src="${esc(c.img || ph)}" data-ph="${esc(ph)}" loading="lazy" alt="">${S.tabs.length > 1 ? logoImg(c.app, 'class="badge"') : ''}</div>
+    <div class="mid"><div class="name">${esc(c.name)}</div><div class="sub">${esc(sub)}</div></div>
+    <div class="right num"><div class="val">${eur(showChange ? c.unit : c.value)}</div>
+      <div class="chg ${ch ? cls(ch.pct) : 'flat'}">${ch ? pct(ch.pct) : (c.qty > 1 ? `${eur(c.unit)} /u` : '—')}</div></div>
+  </div>`;
+}
+
+function perfHTML() {
+  const per = S.tabs.map((id) => store[id]).filter((st) => st?.cards?.length).map((st) => {
+    const cards = st.cards, total = cards.reduce((a, c) => a + c.value, 0);
+    const keep = S.filter; S.filter = st.app.id; const pts = series(cards); S.filter = keep;
+    const d = pts.length ? pts[pts.length - 1].v - pts[0].v : 0;
+    return { st, total, d, p: pts[0]?.v ? d / pts[0].v : 0, n: cards.reduce((a, c) => a + c.qty, 0) };
+  }).sort((a, b) => b.total - a.total);
+  const sum = per.reduce((a, x) => a + x.total, 0) || 1;
+  const all = per.flatMap((x) => x.st.cards);
+  const best = all.map((c) => ({ c, ch: changeOf(c) })).filter((x) => x.ch).sort((a, b) => b.ch.abs - a.ch.abs)[0];
+  const top = [...all].sort((a, b) => b.value - a.value)[0];
+  return `
+    <div class="hero">${(() => { const [i, d] = eur(sum).replace(/\s?€/, '').split(','); return `<div class="big num">€${i}<span class="dec">,${d}</span><span class="cur">EUR</span></div>`; })()}
+      <div class="when">Répartition de ta collection par appli · période ${S.range}</div></div>
+    <div class="alloc">${per.map((x) => `<span style="width:${(x.total / sum) * 100}%;background:${x.st.app.color}"></span>`).join('')}</div>
+    <div class="rows">${per.map((x) => `<div class="row approw" data-tab="${x.st.app.id}">
+      <div class="thumb">${logoImg(x.st.app)}</div>
+      <div class="mid"><div class="name">${esc(x.st.app.name)}</div><div class="sub">${((x.total / sum) * 100).toFixed(1).replace('.', ',')} % · ${x.n} carte${x.n > 1 ? 's' : ''}</div></div>
+      <div class="right num"><div class="val">${eur(x.total)}</div><div class="chg ${cls(x.d)}">${sEur(x.d)} (${pct(x.p)})</div></div></div>`).join('')}</div>
+    <div class="ranges" style="border:0;padding-top:10px">${RANGES.map(([k]) => `<button data-range="${k}" class="${S.range === k ? 'on' : ''}">${k}</button>`).join('')}</div>
+    <div class="stats">
+      <div class="stat"><small>Cartes au total</small><div class="num">${all.reduce((a, c) => a + c.qty, 0)}</div></div>
+      <div class="stat"><small>Valeur moyenne</small><div class="num">${eur(sum / Math.max(1, all.reduce((a, c) => a + c.qty, 0)))}</div></div>
+      <div class="stat"><small>Carte la plus chère</small><div style="font-size:15px">${top ? esc(top.name) : '—'}</div></div>
+      <div class="stat"><small>Meilleure hausse (${S.range})</small><div style="font-size:15px" class="${best && best.ch.abs > 0 ? 'up' : ''}">${best && best.ch.abs > 0 ? `${esc(best.c.name)} ${sEur(best.ch.abs)}` : '—'}</div></div>
+    </div>`;
+}
+
+// ---------- Courbe (comme l'écran « Aperçu ») ----------
+let chartPts = [];
+function drawChart() {
+  const box = $('#chart');
+  if (!box) return;
+  const pts = series(activeCards());
+  chartPts = pts;
+  if (pts.length < 2) { box.innerHTML = `<div class="empty">L’historique des cotes apparaîtra ici dès qu’il y aura au moins deux jours de prix.</div>`; return; }
+  const W = box.clientWidth || 360, H = box.clientHeight, top = 26, bot = 24;
+  let mi = 0, ma = 0;
+  pts.forEach((p, i) => { if (p.v < pts[mi].v) mi = i; if (p.v > pts[ma].v) ma = i; });
+  const lo = pts[mi].v, hi = pts[ma].v, span = hi - lo || 1;
+  const X = (i) => (i / (pts.length - 1)) * W;
+  const Y = (v) => top + (1 - (v - lo) / span) * (H - top - bot);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
+  const up = pts[pts.length - 1].v >= pts[0].v;
+  const col = '#2196f3';
+  const lbl = (i, v, above) => {
+    const x = X(i), left = Math.min(Math.max(x - 40, 4), W - 90);
+    return `<div class="lbl num" style="left:${left}px;top:${above ? Y(v) - 22 : Y(v) + 6}px">${eur(v)}</div>`;
+  };
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".42"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+      <path d="${line}L${W},${H}L0,${H}Z" fill="url(#g)"/>
+      <path d="${line}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    </svg>${lbl(ma, hi, true)}${mi !== ma ? lbl(mi, lo, false) : ''}<div class="cursor"></div><div class="dot"></div>`;
+  box.dataset.up = up;
+  const cur = $('.cursor', box), dot = $('.dot', box);
+  const move = (e) => {
+    const r = box.getBoundingClientRect();
+    const i = Math.round(Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1) * (pts.length - 1));
+    if (i === scrubIdx) return;
+    scrubIdx = i;
+    cur.style.display = dot.style.display = 'block';
+    cur.style.left = `${X(i)}px`; dot.style.left = `${X(i)}px`; dot.style.top = `${Y(pts[i].v)}px`;
+    $('#hero').innerHTML = heroHTML(pts);
+  };
+  const leave = () => { scrubIdx = null; cur.style.display = dot.style.display = 'none'; $('#hero').innerHTML = heroHTML(pts); };
+  box.onpointerdown = (e) => { move(e); };
+  box.onpointermove = (e) => { if (e.pointerType === 'mouse' || e.buttons) move(e); };
+  box.onpointerleave = leave; box.onpointerup = (e) => { if (e.pointerType !== 'mouse') leave(); };
+  box.onpointercancel = leave;
+}
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(drawChart, 120); });
+
+// ---------- Feuilles ----------
+function sheet(html) { $('#sheet').innerHTML = `<div class="grab"></div>${html}`; $('#sheet').classList.add('on'); $('#scrim').classList.add('on'); }
+function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); }
+function addSheet() {
+  sheet(`<h2>Ajouter un onglet</h2><p class="hint">Chaque appli ajoutée s’ouvre dans son mini-onglet en haut, et ses cartes comptent dans la valeur du hub.</p>
+    ${APPS.map((a) => `<div class="appitem">${logoImg(a, 'class="logo"')}<div class="mid"><div class="name">${esc(a.name)}</div><div class="sub">${esc(a.game)}</div></div>
+      ${S.tabs.includes(a.id) ? `<button class="get done" data-remove="${a.id}">Retirer</button>` : `<button class="get" data-install="${a.id}">Ajouter</button>`}</div>`).join('')}`);
+}
+function settingsSheet() {
+  sheet(`<h2>Réglages</h2>
+    <p class="hint">Le hub lit les collections enregistrées par tes applis sur cet appareil et les cotes Cardmarket publiées chaque jour par chacune.</p>
+    ${APPS.filter((a) => a.importable).map((a) => `<div class="appitem">${logoImg(a, 'class="logo"')}<div class="mid"><div class="name">${esc(a.name)}</div><div class="sub">${S.imports[a.id] ? `Collection reçue le ${fDay.format(new Date(S.imports[a.id].at))}` : 'Ouvre son onglet et connecte-toi à ton compte'}</div></div><button class="get" data-act="import" data-app="${a.id}">Importer</button></div>`).join('')}
+    <div class="actions" style="margin-top:12px"><button class="btn ghost" data-act="reload">Actualiser les cotes</button></div>`);
+}
+function importSheet(id) {
+  const a = appById[id];
+  sheet(`<h2>Importer ${esc(a.name)}</h2>
+    <p class="hint">Dans ${esc(a.name)} : Réglages → <b>Exporter mes collections (copier)</b>. Colle ensuite le texte ci-dessous.</p>
+    <textarea id="impText" placeholder='{"app":"RiftDex","col":{…}}'></textarea>
+    <div class="actions" style="margin-top:12px"><button class="btn" data-act="doImport" data-app="${id}">Importer</button>
+    ${S.imports[id] ? `<button class="btn ghost" data-act="dropImport" data-app="${id}">Oublier l’import</button>` : ''}
+    <a class="btn ghost" href="${esc(a.url)}" target="_blank" rel="noopener">Ouvrir ${esc(a.name)}</a></div>`);
+}
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200); }
+
+// ---------- Chargement ----------
+async function loadAll(fresh = false) {
+  if (fresh) cache.clear();
+  if (DEMO) { demoStore(); renderHome(); return; }
+  loading = true; renderHome();
+  await Promise.all(S.tabs.map((id) => loadApp(appById[id]).catch((e) => { console.warn(id, e); store[id] = { app: appById[id], cards: [], status: 'error' }; })));
+  loading = false;
+  if (S.filter !== 'all' && !store[S.filter]?.cards?.length) S.filter = 'all';
+  renderHome();
+}
+
+// ---------- Interactions ----------
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-nav],[data-close],[data-tab],#addTab,[data-act],[data-page],[data-range],[data-list],[data-filter],[data-install],[data-remove],[data-open]');
+  if (!t) { $('#menu')?.classList.remove('on'); $('.dd')?.classList.remove('open'); return; }
+  const d = t.dataset;
+  if (d.nav) { navApp(d.app, d.nav); return; }
+  if (d.close) {
+    e.stopPropagation();
+    const i = S.tabs.indexOf(d.close);
+    S.tabs = S.tabs.filter((x) => x !== d.close);
+    if (S.active === d.close) S.active = S.tabs[i] ?? S.tabs[i - 1] ?? 'home';
+    if (S.filter === d.close) S.filter = 'all';
+    delete store[d.close];
+    show(); return;
+  }
+  if (d.tab) { const was = S.active; S.active = d.tab; if (d.tab === 'home' && was !== 'home' && !DEMO) loadAll(); show(); return; }
+  if (t.id === 'addTab' || d.act === 'add') { addSheet(); return; }
+  if (d.install) {
+    S.tabs.push(d.install); closeSheet(); show(); toast(`${appById[d.install].name} ajouté`);
+    if (DEMO) demoStore(); else { bridges(); loadApp(appById[d.install]).catch(() => {}).then(renderHome); }
+    return;
+  }
+  if (d.remove) { S.tabs = S.tabs.filter((x) => x !== d.remove); delete store[d.remove]; if (S.active === d.remove) S.active = 'home'; if (S.filter === d.remove) S.filter = 'all'; closeSheet(); show(); return; }
+  if (d.page) { S.page = d.page; save(); renderHome(); return; }
+  if (d.range) { S.range = d.range; save(); renderHome(); return; }
+  if (d.filter) { S.filter = d.filter; showN = 20; save(); renderHome(); return; }
+  if (d.list) { S.list = d.list; showN = 20; save(); renderHome(); return; }
+  if (d.open) { S.active = d.open; show(); return; }
+  switch (d.act) {
+    case 'dd': e.stopPropagation(); $('#menu').classList.toggle('on'); t.classList.toggle('open'); break;
+    case 'more': showN += 30; renderHome(); break;
+    case 'perf': S.page = S.page === 'perf' ? 'overview' : 'perf'; renderHome(); break;
+    case 'settings': settingsSheet(); break;
+    case 'reload': closeSheet(); await loadAll(true); toast('Cotes actualisées'); break;
+    case 'import': importSheet(d.app); break;
+    case 'doImport': {
+      try {
+        const data = JSON.parse($('#impText').value.trim());
+        if (!data.col && !data.owned) throw new Error();
+        S.imports[d.app] = { at: Date.now(), data: { col: data.col, owned: data.owned, copies: data.copies } };
+        save(); closeSheet(); toast('Collection importée');
+        if (!S.tabs.includes(d.app)) S.tabs.push(d.app);
+        S.active = 'home'; show(); loadAll();
+      } catch { toast('Texte invalide : colle l’export complet'); }
+      break;
+    }
+    case 'dropImport': delete S.imports[d.app]; save(); closeSheet(); loadAll(); break;
+  }
+});
+$('#scrim').addEventListener('click', closeSheet);
+// une appli ouverte dans un onglet a modifié sa collection → le hub se met à jour
+addEventListener('storage', (e) => { if (APPS.some((a) => a.key === e.key) && S.active === 'home') loadAll(); });
+
+// ---------- Applis sur un autre domaine (RiftDex) ----------
+// Leur collection arrive par message : depuis leur onglet ouvert dans le hub, et au démarrage depuis une petite page
+// invisible (hub-bridge.html). Seuls les messages venant du domaine de l'appli sont acceptés.
+const hasCards = (col) => Object.values(col || {}).some((c) => Object.values(c?.owned || {}).some((q) => q > 0));
+addEventListener('message', (e) => {
+  const a = APPS.find((x) => x.origin && x.origin === e.origin);
+  if (!a || e.data?.type !== 'dexhub:collection' || e.data.app !== a.id) return;
+  const col = e.data.col;
+  if (!hasCards(col) && S.imports[a.id]) return;   // onglet pas encore connecté : on garde la dernière collection connue
+  if (!hasCards(col)) return;
+  if (JSON.stringify(S.imports[a.id]?.data?.col) === JSON.stringify(col)) return;
+  S.imports[a.id] = { at: Date.now(), auto: true, data: { col } };
+  save();
+  if (S.tabs.includes(a.id) && !DEMO) loadApp(a).catch(() => {}).then(() => { if (S.active === 'home') renderHome(); });
+});
+function bridges() {
+  if (!ON_SITE) return;
+  for (const id of S.tabs) {
+    const a = appById[id];
+    if (!a.bridge || document.getElementById(`b-${id}`)) continue;
+    const f = document.createElement('iframe');
+    f.id = `b-${id}`; f.src = a.bridge; f.hidden = true; f.setAttribute('aria-hidden', 'true');
+    f.onload = () => setTimeout(() => f.remove(), 3000);
+    document.body.appendChild(f);
+  }
+}
+
+show();
+loadAll();
+bridges();
+</script>
+</body>
+</html>
