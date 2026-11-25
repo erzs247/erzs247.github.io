@@ -475,9 +475,34 @@ function openAppView(id) {
   </div>`;
   const f = $(`#f-${id}`);
   if (f) f.addEventListener('load', () => {
+    ready[id] = false;
     try { $(`#u-${id}`).innerHTML = shortUrl(f.contentWindow.location.href); } catch { /* autre domaine : adresse de départ */ }
   });
 }
+// ---------- Ouvrir une carte précise dans son appli ----------
+// L'appli (dans son onglet) dit « prête » au hub ; le hub lui demande alors d'afficher la carte touchée.
+const ready = {}, pending = {};
+const appOrigin = (a) => a.origin || location.origin;
+function sendOpen(id) {
+  const f = $(`#f-${id}`), card = pending[id];
+  if (!f || !card || !ready[id]) return;
+  delete pending[id];
+  try { f.contentWindow.postMessage({ type: 'dexhub:open', id: card }, appOrigin(appById[id])); } catch {}
+}
+function openInApp(id, card) {
+  if (!S.tabs.includes(id)) S.tabs.push(id);
+  S.active = id;
+  show();
+  if (card) { pending[id] = card; sendOpen(id); }
+}
+addEventListener('message', (e) => {
+  if (e.data?.type !== 'dexhub:ready') return;
+  for (const id of S.tabs) {
+    const f = $(`#f-${id}`);
+    if (f && e.source === f.contentWindow && e.origin === appOrigin(appById[id])) { ready[id] = true; sendOpen(id); }
+  }
+});
+
 function navApp(id, what) {
   const f = $(`#f-${id}`);
   if (!f) return;
@@ -579,7 +604,7 @@ function rowHTML({ c, ch }) {
   const ph = placeholder(c);
   const showChange = S.list === 'gain' || S.list === 'loss';
   const sub = [c.qty > 1 ? `×${c.qty}` : null, c.foil ? 'foil' : null, [c.set, c.number].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
-  return `<div class="row" data-open="${c.app.id}">
+  return `<div class="row" data-open="${c.app.id}" data-card="${esc(c.id)}">
     <div class="thumb"><img src="${esc(c.img || ph)}" data-ph="${esc(ph)}" loading="lazy" alt="">${S.tabs.length > 1 ? logoImg(c.app, 'class="badge"') : ''}</div>
     <div class="mid"><div class="name">${esc(c.name)}</div><div class="sub">${esc(sub)}</div></div>
     <div class="right num"><div class="val">${eur(showChange ? c.unit : c.value)}</div>
@@ -723,7 +748,7 @@ document.addEventListener('click', async (e) => {
   if (d.range) { S.range = d.range; save(); renderHome(); return; }
   if (d.filter) { S.filter = d.filter; showN = 20; save(); renderHome(); return; }
   if (d.list) { S.list = d.list; showN = 20; save(); renderHome(); return; }
-  if (d.open) { S.active = d.open; show(); return; }
+  if (d.open) { openInApp(d.open, d.card); return; }
   switch (d.act) {
     case 'dd': e.stopPropagation(); $('#menu').classList.toggle('on'); t.classList.toggle('open'); break;
     case 'more': showN += 30; renderHome(); break;
